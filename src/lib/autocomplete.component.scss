@@ -1,3 +1,9 @@
 :host {
 
 }
+
+::ng-deep .cdk-overlay-pane {
+
+    flex-direction: column;
+
+}

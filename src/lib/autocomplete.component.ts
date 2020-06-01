@@ -1,24 +1,47 @@
-import { Component, ContentChild, ContentChildren, Input, OnInit, QueryList, TemplateRef, ViewChild } from '@angular/core';
-import { merge, Subject }                                                                             from 'rxjs';
-import { switchMap }                                                                                  from 'rxjs/operators';
-import { AutocompleteConfig }                                                                         from './autocomplete-config';
-import { AutocompleteContentDirective }                                                               from './autocomplete-content.directive';
-import { AutocompleteService }                                                                        from './autocomplete.service';
-import { OptionComponent }                                                                            from './option/option.component';
+import { ConnectionPositionPair, Overlay, OverlayRef } from '@angular/cdk/overlay';
+import { TemplatePortal }                              from '@angular/cdk/portal';
+import {
+    ChangeDetectorRef,
+    Component,
+    ContentChild,
+    ElementRef,
+    Input,
+    OnInit,
+    TemplateRef,
+    ViewChild,
+    ViewContainerRef
+}                                                      from '@angular/core';
+import { fromEvent, Subject }                          from 'rxjs';
+import {
+    filter,
+    takeUntil
+}                                                      from 'rxjs/operators';
+import { AutocompleteConfig }                          from './autocomplete-config';
+import { AutocompleteService }                         from './autocomplete.service';
 
 @Component({
     selector: 'ng-studio-autocomplete',
     template: `
 
-        <ng-template #root>
+        <div class="wrapper">
 
-            <div class="ng-studio-autocomplete" [style.background-color]="config.backgroundColor">
+            <input #input
+                   (focus)="open()"
+                   (keydown)="onInputChange($event)"
+                   placeholder="Search...">
 
-                <ng-content *ngFor="let item of (dataSource$ | async)"></ng-content>
+            <ng-template #options style="flex-direction: column">
 
-            </div>
+                <div *ngFor="let item of filteredDatasource || (dataSource$ | async)"
+                     (click)="onOptionClick(item)">
 
-        </ng-template>
+                    <template [templateWrapper]="template" [item]="item"></template>
+
+                </div>
+
+            </ng-template>
+
+        </div>
 
     `,
     styleUrls: [ './autocomplete.component.scss' ],
@@ -30,13 +53,50 @@ export class AutocompleteComponent implements OnInit {
     @Input() public config: AutocompleteConfig;
     @Input() public dataSource$: Subject<any>;
 
-    @ViewChild('root') rootTemplate: TemplateRef<any>;
+    @ContentChild(TemplateRef) public template;
+    @ViewChild('options') public optionsContentChild;
+    @ViewChild('input') public inputViewChild;
 
-    @ContentChild(AutocompleteContentDirective) public content: AutocompleteContentDirective;
+    public filteredDatasource: Array<any> = [];
+    private overlayRef: OverlayRef;
 
-    @ContentChildren(OptionComponent) options: QueryList<OptionComponent>;
+    public constructor(private autocompleteService: AutocompleteService<any>,
+                       private host: ElementRef<HTMLInputElement>,
+                       private viewContainerRef: ViewContainerRef,
+                       private overlay: Overlay,
+                       private cdr: ChangeDetectorRef) {
 
-    public constructor(private autocompleteService: AutocompleteService<any>) {
+    }
+
+
+    private get origin() {
+
+        return this.host.nativeElement;
+
+    }
+
+    private getOverlayPosition() {
+
+        const positions = [
+
+            new ConnectionPositionPair(
+                { originX: 'start', originY: 'bottom' },
+                { overlayX: 'start', overlayY: 'top' }
+            ),
+
+            new ConnectionPositionPair(
+                { originX: 'start', originY: 'top' },
+                { overlayX: 'start', overlayY: 'bottom' }
+            )
+
+        ];
+
+        return this.overlay
+                   .position()
+                   .flexibleConnectedTo(this.origin)
+                   .withPositions(positions)
+                   .withFlexibleDimensions(false)
+                   .withPush(false);
 
     }
 
@@ -44,20 +104,88 @@ export class AutocompleteComponent implements OnInit {
 
         this.autocompleteService.config = new AutocompleteConfig(this.config);
 
+    }
+
+    public open(): void {
+
+        this.dataSource$.subscribe(options => this.filteredDatasource = options);
+
+        this.overlayRef = this.overlay.create({
+
+            width: this.origin.width,
+            maxHeight: 40 * 3,
+            backdropClass: '',
+
+            scrollStrategy: this.overlay.scrollStrategies.reposition(),
+            positionStrategy: this.getOverlayPosition()
+
+        });
+
+        this.overlayRef.attach(new TemplatePortal(this.optionsContentChild, this.viewContainerRef));
+
+        overlayClickOutside(this.overlayRef, this.inputViewChild).subscribe(() => this.close());
 
     }
 
-    public optionsClick() {
-        console.log(this.options);
+    public close(): void {
 
-        return this.options.changes.pipe(switchMap(options => {
+        this.overlayRef.detach();
+        this.overlayRef = null;
 
-            const clicks$ = options.map(option => option.click$);
+        this.inputViewChild.nativeElement.value = '';
 
-            return merge(...clicks$);
-
-        }));
+        this.inputViewChild.nativeElement.blur();
 
     }
+
+    public onOptionClick(item: any): void {
+
+        this.autocompleteService.valueChanged(item);
+
+        if (!this.autocompleteService.config.allowMultiple) {
+
+            this.close();
+
+        }
+
+    }
+
+    public onInputChange(e: KeyboardEvent): void {
+
+        if (e.key === 'Enter') {
+
+            this.autocompleteService.valueChanged(this.inputViewChild.nativeElement.value);
+
+            this.close();
+
+        } else if (e.key === 'Escape') {
+
+            this.close();
+
+        } else {
+
+            const results = this.dataSource$.subscribe(options => {
+
+                this.filteredDatasource = options.filter(option => option[ this.autocompleteService.config.searchPropertyName ].toLowerCase().indexOf(this.inputViewChild.nativeElement.value.toLowerCase()) > -1);
+
+            });
+
+        }
+
+    }
+
+}
+
+export function overlayClickOutside(overlayRef: OverlayRef, origin: any) {
+
+    return fromEvent<MouseEvent>(document, 'click').pipe(filter(event => {
+
+        const clickTarget = event.target as HTMLElement;
+        const notOrigin = clickTarget !== origin.nativeElement; // the input
+        const notOverlay = !!overlayRef && (overlayRef.overlayElement.contains(clickTarget) === false); // the autocomplete
+
+        return notOrigin && notOverlay;
+
+    }), takeUntil(overlayRef.detachments()));
 
 }

@@ -1,35 +1,31 @@
-import { CommonModule }                 from '@angular/common';
-import { NgModule }                     from '@angular/core';
-import { AutocompleteContentDirective } from './autocomplete-content.directive';
-import { AutocompleteFilterPipe }       from './autocomplete-filter.pipe';
-import { AutocompleteComponent }        from './autocomplete.component';
-import { AutocompleteDirective }        from './autocomplete.directive';
-import { OptionComponent }              from './option/option.component';
+import { PortalModule }          from '@angular/cdk/portal';
+import { CommonModule }          from '@angular/common';
+import { NgModule }              from '@angular/core';
+import { AutocompleteComponent } from './autocomplete.component';
+import { OptionComponent }       from './option/option.component';
+import { TemplateWrapper }       from './template-wrapper.directive';
 
 @NgModule({
 
     declarations: [
 
         AutocompleteComponent,
-        AutocompleteDirective,
-        AutocompleteContentDirective,
-        AutocompleteFilterPipe,
-        OptionComponent
+        OptionComponent,
+
+        TemplateWrapper
 
     ],
 
     imports: [
 
-        CommonModule
+        CommonModule,
+        PortalModule
 
     ],
 
     exports: [
 
         AutocompleteComponent,
-        AutocompleteDirective,
-        AutocompleteContentDirective,
-        AutocompleteFilterPipe,
         OptionComponent
 
     ]

@@ -8,7 +8,7 @@ import { mapTo }                                                         from 'r
 
         <div class="option">
 
-            <ng-content></ng-content>
+            asdfasdfasdf
 
         </div>
 

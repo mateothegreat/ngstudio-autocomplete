@@ -3,6 +3,7 @@ export class AutocompleteConfig {
     public allowCustomValue?: boolean;
     public allowMultiple?: boolean;
     public closeAfterInputEntered?: boolean = true;
+    public openOnFocus?: boolean = true;
 
     public backgroundColor?: string = '#fff';
 

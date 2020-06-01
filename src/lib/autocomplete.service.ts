@@ -11,7 +11,7 @@ export class AutocompleteService<T> {
     public config: AutocompleteConfig;
     public optionsFiltered: Subject<any> = new Subject();
 
-    public setValue(value: T): void {
+    public valueChanged(value: T): void {
 
         this.value$.next(value);
 
